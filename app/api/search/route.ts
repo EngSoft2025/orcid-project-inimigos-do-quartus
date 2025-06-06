@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { makeAuthenticatedOrcidRequest } from "@/lib/orcid-auth"
-import { enrichWithExternalData, formatDataOrDash } from "@/lib/academic-platforms"
+import { enrichWithOrcidAndCrossRefData, formatDataOrDash } from "@/lib/academic-platforms"
 
 interface ORCIDSearchResult {
   "orcid-identifier": {
@@ -24,35 +24,43 @@ interface Researcher {
 
 // Enhanced country code mapping for better filtering
 const COUNTRY_CODES: { [key: string]: string[] } = {
-  "BR": ["Brazil", "Brasil", "BR", "Brazilian"],
-  "US": ["United States", "USA", "US", "United States of America", "American"],
+  "BR": ["Brazil", "Brasil", "BR", "Brazilian", "Universidade", "Instituto", "UFRJ", "USP", "UFMG", "UNICAMP"],
+  "US": ["United States", "USA", "US", "United States of America", "American", "University", "College"],
   "GB": ["United Kingdom", "UK", "GB", "Great Britain", "England", "Scotland", "Wales", "British"],
-  "DE": ["Germany", "Deutschland", "DE", "German"],
-  "FR": ["France", "FR", "French"],
-  "CA": ["Canada", "CA", "Canadian"],
-  "AU": ["Australia", "AU", "Australian"],
-  "JP": ["Japan", "JP", "Japanese"],
-  "CN": ["China", "CN", "Chinese"],
-  "IN": ["India", "IN", "Indian"],
-  "ES": ["Spain", "España", "ES", "Spanish"],
-  "IT": ["Italy", "Italia", "IT", "Italian"],
-  "NL": ["Netherlands", "Nederland", "NL", "Holland", "Dutch"],
-  "SE": ["Sweden", "Sverige", "SE", "Swedish"],
-  "NO": ["Norway", "Norge", "NO", "Norwegian"],
-  "CH": ["Switzerland", "Schweiz", "CH", "Swiss"],
-  "AT": ["Austria", "Österreich", "AT", "Austrian"],
-  "BE": ["Belgium", "België", "BE", "Belgian"],
-  "DK": ["Denmark", "Danmark", "DK", "Danish"]
+  "DE": ["Germany", "Deutschland", "DE", "German", "Universität"],
+  "FR": ["France", "FR", "French", "Université"],
+  "CA": ["Canada", "CA", "Canadian", "University"],
+  "AU": ["Australia", "AU", "Australian", "University"],
+  "JP": ["Japan", "JP", "Japanese", "University"],
+  "CN": ["China", "CN", "Chinese", "University"],
+  "IN": ["India", "IN", "Indian", "University"],
+  "ES": ["Spain", "España", "ES", "Spanish", "Universidad"],
+  "IT": ["Italy", "Italia", "IT", "Italian", "Università"],
+  "NL": ["Netherlands", "Nederland", "NL", "Holland", "Dutch", "Universiteit"],
+  "SE": ["Sweden", "Sverige", "SE", "Swedish", "University"],
+  "NO": ["Norway", "Norge", "NO", "Norwegian", "University"],
+  "CH": ["Switzerland", "Schweiz", "CH", "Swiss", "University"],
+  "AT": ["Austria", "Österreich", "AT", "Austrian", "Universität"],
+  "BE": ["Belgium", "België", "BE", "Belgian", "University"],
+  "DK": ["Denmark", "Danmark", "DK", "Danish", "University"],
+  "PT": ["Portugal", "PT", "Portuguese", "Universidade"],
+  "MX": ["Mexico", "México", "MX", "Mexican", "Universidad"],
+  "AR": ["Argentina", "AR", "Argentinian", "Universidad"],
+  "CL": ["Chile", "CL", "Chilean", "Universidad"],
+  "CO": ["Colombia", "CO", "Colombian", "Universidad"],
+  "PE": ["Peru", "Perú", "PE", "Peruvian", "Universidad"],
+  "UY": ["Uruguay", "UY", "Uruguayan", "Universidad"],
+  "VE": ["Venezuela", "VE", "Venezuelan", "Universidad"]
 }
 
 // Cache for basic profile data to avoid repeated API calls
 const profileCache = new Map<string, any>()
-const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes
+const CACHE_DURATION = 15 * 60 * 1000 // 15 minutes
 
 export async function POST(request: NextRequest) {
   try {
     const { query, type, country } = await request.json()
-
+    
     if (!query?.trim()) {
       return NextResponse.json({ error: "Query is required" }, { status: 400 })
     }
@@ -68,61 +76,10 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Build simple ORCID search query that works reliably
-    let searchQuery = query.trim()
+    // Use a multi-strategy approach for better country filtering
+    const searchResults = await performCountryAwareSearch(query, type, country)
     
-    // Use the simplest possible syntax for ORCID API
-    if (type === "keywords") {
-      // For keywords, just search for the term
-      searchQuery = searchQuery
-    } else {
-      // For names, use simple wildcard search
-      searchQuery = searchQuery
-    }
-
-    // Remove country filter temporarily to test basic functionality
-    // We'll filter by country on the client side instead
-    /* 
-    if (country && country !== "all") {
-      const countryNames = COUNTRY_CODES[country] || [country]
-      const primaryCountry = countryNames[0]
-      searchQuery = `${searchQuery} AND country:${primaryCountry}`
-    }
-    */
-
-    const encodedQuery = encodeURIComponent(searchQuery)
-    const searchUrl = `https://pub.orcid.org/v3.0/search/?q=${encodedQuery}&rows=30&start=0`
-    
-    console.log(`ORCID Search Query: ${searchQuery}`)
-
-    try {
-      const response = await makeAuthenticatedOrcidRequest(searchUrl)
-
-      if (!response.ok) {
-        console.error(`ORCID API error: ${response.status} ${response.statusText}`)
-        const errorText = await response.text().catch(() => 'No error details')
-        console.error(`ORCID error details:`, errorText)
-        
-        return NextResponse.json({ 
-          error: "Erro na busca", 
-          message: `Falha na API ORCID: ${response.status}. Tente novamente.`
-        }, { status: 500 })
-      }
-
-      const data = await response.json()
-      const results = data.result || []
-
-      console.log(`Found ${results.length} initial results from ORCID`)
-
-      return await processSearchResults(results, country, query)
-
-    } catch (apiError) {
-      console.error('ORCID API request failed:', apiError)
-      return NextResponse.json({ 
-        error: "Erro de conexão", 
-        message: "Falha ao conectar com a API ORCID. Verifique sua conexão."
-      }, { status: 500 })
-    }
+    return NextResponse.json({ researchers: searchResults })
 
   } catch (error) {
     console.error("Search error:", error)
@@ -134,10 +91,122 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function processSearchResults(results: ORCIDSearchResult[], filterCountry?: string, originalQuery?: string): Promise<NextResponse> {
+async function performCountryAwareSearch(query: string, type: string, country?: string): Promise<Researcher[]> {
+  const allResults: Researcher[] = []
+  
+  // Strategy 1: Direct search with country-specific terms
+  if (country && country !== "all") {
+    const countrySpecificResults = await searchWithCountryTerms(query, type, country)
+    allResults.push(...countrySpecificResults)
+    console.log(`Country-specific search found ${countrySpecificResults.length} results`)
+  }
+  
+  // Strategy 2: General search with post-filtering
+  if (allResults.length < 15) { // If we don't have enough results
+    const generalResults = await searchGeneral(query, type, country)
+    
+    // Merge results, avoiding duplicates
+    const existingIds = new Set(allResults.map(r => r.orcidId))
+    const newResults = generalResults.filter(r => !existingIds.has(r.orcidId))
+    allResults.push(...newResults)
+    console.log(`General search added ${newResults.length} new results`)
+  }
+  
+  // Sort and rank results
+  return rankAndSortResults(allResults)
+}
+
+async function searchWithCountryTerms(query: string, type: string, country: string): Promise<Researcher[]> {
+  const countryNames = COUNTRY_CODES[country] || [country]
+  
+  // Build search query with country-specific terms
+  let searchQuery = query.trim()
+  
+  if (type === "keywords") {
+    searchQuery = `"${searchQuery}"`
+  } else {
+    const nameParts = searchQuery.split(' ').filter((part: string) => part.length > 1)
+    if (nameParts.length > 1) {
+      const givenName = nameParts.slice(0, -1).join(' ')
+      const familyName = nameParts[nameParts.length - 1]
+      searchQuery = `family-name:"${familyName}" AND given-names:"${givenName}"`
+    } else {
+      searchQuery = `family-name:"${searchQuery}" OR given-names:"${searchQuery}"`
+    }
+  }
+  
+  // Add country filter using multiple strategies
+  const countryQueries = countryNames.flatMap(countryName => [
+    `affiliation-org-name:*${countryName}*`,
+    `current-institution-affiliation-name:*${countryName}*`
+  ])
+  
+  const finalQuery = `(${searchQuery}) AND (${countryQueries.join(' OR ')})`
+  
+  try {
+    return await executeOrcidSearch(finalQuery, country)
+  } catch (error) {
+    console.warn('Country-specific search failed:', error)
+    return []
+  }
+}
+
+async function searchGeneral(query: string, type: string, filterCountry?: string): Promise<Researcher[]> {
+  let searchQuery = query.trim()
+  
+  if (type === "keywords") {
+    const keywords = searchQuery.split(/[,\s]+/).filter((k: string) => k.length > 2)
+    if (keywords.length > 1) {
+      searchQuery = keywords.map((keyword: string) => `"${keyword.trim()}"`).join(' OR ')
+    } else {
+      searchQuery = `"${searchQuery}"`
+    }
+  } else {
+    const nameParts = searchQuery.split(' ').filter((part: string) => part.length > 1)
+    if (nameParts.length > 1) {
+      const givenName = nameParts.slice(0, -1).join(' ')
+      const familyName = nameParts[nameParts.length - 1]
+      searchQuery = `family-name:"${familyName}" AND given-names:"${givenName}"`
+    } else {
+      searchQuery = `family-name:"${searchQuery}" OR given-names:"${searchQuery}"`
+    }
+  }
+  
+  return await executeOrcidSearch(searchQuery, filterCountry)
+}
+
+async function executeOrcidSearch(searchQuery: string, filterCountry?: string): Promise<Researcher[]> {
+  const encodedQuery = encodeURIComponent(searchQuery)
+  const searchUrl = `https://pub.orcid.org/v3.0/search/?q=${encodedQuery}&rows=50&start=0`
+  
+  console.log(`ORCID Search Query: ${searchQuery}`)
+  
+  try {
+    const response = await makeAuthenticatedOrcidRequest(searchUrl)
+    
+    if (!response.ok) {
+      console.error(`ORCID API error: ${response.status} ${response.statusText}`)
+      const errorText = await response.text().catch(() => 'No error details')
+      console.error(`ORCID error details:`, errorText)
+      throw new Error(`ORCID API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const results = data.result || []
+    console.log(`Found ${results.length} results from ORCID`)
+
+    return await processSearchResults(results, filterCountry)
+
+  } catch (apiError) {
+    console.error('ORCID API request failed:', apiError)
+    throw apiError
+  }
+}
+
+async function processSearchResults(results: ORCIDSearchResult[], filterCountry?: string): Promise<Researcher[]> {
   const researchers: Researcher[] = []
-  const maxResults = 20 // Limit results for better performance
-  const batchSize = 3 // Smaller batches for more reliable processing
+  const maxResults = 25 // Increased for better variety
+  const batchSize = 5 // Optimized batch size
   
   for (let i = 0; i < Math.min(results.length, maxResults); i += batchSize) {
     const batch = results.slice(i, i + batchSize)
@@ -154,20 +223,20 @@ async function processSearchResults(results: ORCIDSearchResult[], filterCountry?
         if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
           const cachedResearcher = createResearcherFromCachedData(cached.data, orcidId, filterCountry)
           if (cachedResearcher) {
-            // Try to get publication data for cached researcher
+            // Try to get enhanced publication data for cached researcher
             try {
-              const publicationData = await getPublicationDataEfficiently(orcidId, cachedResearcher.name)
+              const publicationData = await getEnhancedPublicationData(orcidId, cachedResearcher.name)
               cachedResearcher.citationCount = publicationData.citationCount
               cachedResearcher.publicationCount = publicationData.publicationCount
             } catch (error) {
-              console.log(`Failed to get publication data for cached ${cachedResearcher.name}`)
+              console.log(`Failed to get enhanced data for cached ${cachedResearcher.name}`)
             }
           }
           return cachedResearcher
         }
 
-        // Fetch basic profile data with timeout
-        const timeoutMs = 8000 // Increased timeout
+        // Fetch comprehensive profile data
+        const timeoutMs = 10000 // Increased timeout
         const profileResponse = await Promise.race([
           makeAuthenticatedOrcidRequest(`https://pub.orcid.org/v3.0/${orcidId}/person`),
           new Promise<Response>((_, reject) => 
@@ -185,37 +254,39 @@ async function processSearchResults(results: ORCIDSearchResult[], filterCountry?
           // Cache the profile data
           profileCache.set(cacheKey, { data: profileData, timestamp: Date.now() })
           
-          // Extract name
+          // Extract name with multiple fallbacks
           const givenNames = profileData.name?.["given-names"]?.value || ""
           const familyName = profileData.name?.["family-name"]?.value || ""
-          name = `${givenNames} ${familyName}`.trim() || "Nome não disponível"
-
-          // Extract country
+          const creditName = profileData.name?.["credit-name"]?.value || ""
+          
+          name = creditName || `${givenNames} ${familyName}`.trim() || "Nome não disponível"
+          
+          // Extract country with improved matching
           const addresses = profileData.addresses?.address || []
-          country = addresses.length > 0 ? addresses[0].country?.value : "País não informado"
-
+          if (addresses.length > 0) {
+            country = addresses[0].country?.value || "País não informado"
+          }
+          
           // Extract keywords
           const keywordData = profileData.keywords?.keyword || []
-          keywords = keywordData.slice(0, 10).map((k: any) => k.content).filter(Boolean)
+          keywords = keywordData.slice(0, 15).map((k: any) => k.content).filter(Boolean)
         }
 
-        // Apply country filter if specified
+        // Apply enhanced country filtering
         if (filterCountry && filterCountry !== "all") {
-          if (country === "País não informado" || 
-              (!country.toLowerCase().includes(filterCountry.toLowerCase()) && 
-               country !== filterCountry.toUpperCase())) {
+          if (!isCountryMatch(country, filterCountry)) {
             console.log(`Filtering out ${name} - country: ${country}, filter: ${filterCountry}`)
             return null
           }
         }
 
-        // Get publication and citation data with better error handling
+        // Get enhanced publication and citation data
         let citationCount: number | string = "-"
         let publicationCount: number | string = "-"
         
         try {
-          console.log(`Getting publication data for ${name}...`)
-          const publicationData = await getPublicationDataEfficiently(orcidId, name)
+          console.log(`Getting enhanced publication data for ${name}...`)
+          const publicationData = await getEnhancedPublicationData(orcidId, name)
           citationCount = publicationData.citationCount
           publicationCount = publicationData.publicationCount
           console.log(`${name}: ${publicationCount} publications, ${citationCount} citations`)
@@ -223,14 +294,13 @@ async function processSearchResults(results: ORCIDSearchResult[], filterCountry?
           console.log(`Failed to get publication data for ${name}:`, error instanceof Error ? error.message : 'Unknown error')
         }
 
-        // Return researcher object with correct property names
         return {
           orcidId,
           name,
           country,
           keywords,
-          citationCount, // This maps to the search interface
-          publicationCount, // This maps to the search interface
+          citationCount,
+          publicationCount,
           rank: 0 // Will be set during sorting
         }
 
@@ -252,13 +322,139 @@ async function processSearchResults(results: ORCIDSearchResult[], filterCountry?
       console.error('Error processing batch:', error)
     }
 
-    // Delay between batches to avoid overwhelming the APIs
+    // Optimized delay between batches
     if (i + batchSize < Math.min(results.length, maxResults)) {
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, 300))
     }
   }
 
-  // Sort researchers by citation count (handling both numbers and strings)
+  return researchers
+}
+
+function isCountryMatch(researcherCountry: string, filterCountry: string): boolean {
+  if (researcherCountry === "País não informado") return false
+  
+  const countryNames = COUNTRY_CODES[filterCountry] || [filterCountry]
+  
+  return countryNames.some(countryName => {
+    const researcherCountryLower = researcherCountry.toLowerCase()
+    const countryNameLower = countryName.toLowerCase()
+    
+    return researcherCountryLower.includes(countryNameLower) ||
+           countryNameLower.includes(researcherCountryLower) ||
+           researcherCountryLower === countryNameLower
+  })
+}
+
+function createResearcherFromCachedData(profileData: any, orcidId: string, filterCountry?: string): Researcher | null {
+  // Extract name from cached data
+  const givenNames = profileData.name?.["given-names"]?.value || ""
+  const familyName = profileData.name?.["family-name"]?.value || ""
+  const creditName = profileData.name?.["credit-name"]?.value || ""
+  const name = creditName || `${givenNames} ${familyName}`.trim() || "Nome não disponível"
+
+  // Extract country
+  const addresses = profileData.addresses?.address || []
+  const country = addresses.length > 0 ? addresses[0].country?.value : "País não informado"
+
+  // Apply country filter
+  if (filterCountry && filterCountry !== "all") {
+    if (!isCountryMatch(country, filterCountry)) {
+      return null
+    }
+  }
+
+  // Extract keywords
+  const keywordData = profileData.keywords?.keyword || []
+  const keywords = keywordData.slice(0, 15).map((k: any) => k.content).filter(Boolean)
+
+  return {
+    orcidId,
+    name,
+    country,
+    keywords,
+    citationCount: "-", // Will be filled by enhanced data if available
+    publicationCount: "-", // Will be filled by enhanced data if available
+    rank: 0,
+  }
+}
+
+async function getEnhancedPublicationData(orcidId: string, name: string): Promise<{ citationCount: number | string, publicationCount: number | string }> {
+  try {
+    // Get ORCID works data
+    const worksResponse = await Promise.race([
+      makeAuthenticatedOrcidRequest(`https://pub.orcid.org/v3.0/${orcidId}/works`),
+      new Promise<Response>((_, reject) => 
+        setTimeout(() => reject(new Error('ORCID works timeout')), 10000)
+      )
+    ])
+
+    let orcidPublicationCount = 0
+    let publications: any[] = []
+
+    if (worksResponse.ok) {
+      const worksData = await worksResponse.json()
+      orcidPublicationCount = worksData.group?.length || 0
+      
+      // Extract publication details for enrichment
+      publications = worksData.group?.slice(0, 20).map((group: any) => {
+        const workSummary = group["work-summary"]?.[0]
+        return {
+          title: workSummary?.title?.title?.value || "Título não disponível",
+          year: workSummary?.["publication-date"]?.year?.value || new Date().getFullYear(),
+          journal: workSummary?.["journal-title"]?.value || "Revista não informada"
+        }
+      }) || []
+    }
+
+    // Try to enhance with CrossRef data
+    try {
+      console.log(`Attempting to enhance ${name} with CrossRef data`)
+      const enrichmentResult = await Promise.race([
+        enrichWithOrcidAndCrossRefData(name, {
+          publications,
+          totalCitations: 0,
+          hIndex: 0
+        }),
+        new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error('Enrichment timeout')), 15000)
+        )
+      ])
+
+      if (enrichmentResult && enrichmentResult.totalCitations !== undefined) {
+        const citations = typeof enrichmentResult.totalCitations === 'number' ? 
+                         enrichmentResult.totalCitations : 
+                         (enrichmentResult.totalCitations === "-" ? 0 : parseInt(String(enrichmentResult.totalCitations)) || 0)
+        
+        const publicationCountFromEnrichment = enrichmentResult.publications?.length || orcidPublicationCount
+        
+        console.log(`Successfully enhanced ${name}: ${citations} citations, ${publicationCountFromEnrichment} publications`)
+        return {
+          citationCount: citations > 0 ? citations : "-",
+          publicationCount: publicationCountFromEnrichment > 0 ? publicationCountFromEnrichment : orcidPublicationCount || "-"
+        }
+      }
+    } catch (enrichmentError) {
+      console.log(`Enrichment failed for ${name}:`, enrichmentError instanceof Error ? enrichmentError.message : 'Unknown error')
+    }
+
+    // Fallback to ORCID data only
+    return {
+      citationCount: "-",
+      publicationCount: orcidPublicationCount > 0 ? orcidPublicationCount : "-"
+    }
+
+  } catch (error) {
+    console.error(`Error getting enhanced publication data for ${orcidId}:`, error)
+    return {
+      citationCount: "-",
+      publicationCount: "-"
+    }
+  }
+}
+
+function rankAndSortResults(researchers: Researcher[]): Researcher[] {
+  // Enhanced sorting by citation count and publication count
   researchers.sort((a, b) => {
     const aCitations = typeof a.citationCount === 'number' ? a.citationCount : 
                      (a.citationCount === "-" ? 0 : parseInt(String(a.citationCount)) || 0)
@@ -285,174 +481,7 @@ async function processSearchResults(results: ORCIDSearchResult[], filterCountry?
   })
 
   console.log(`Returning ${researchers.length} researchers`)
-  console.log(`Citation counts: ${researchers.map(r => `${r.name}: ${r.citationCount}`).join(', ')}`)
+  console.log(`Top citations: ${researchers.slice(0, 3).map(r => `${r.name}: ${r.citationCount}`).join(', ')}`)
 
-  return NextResponse.json({ researchers })
-}
-
-function createResearcherFromCachedData(profileData: any, orcidId: string, filterCountry?: string): Researcher | null {
-  // Extract name from cached data
-  const givenNames = profileData.name?.["given-names"]?.value || ""
-  const familyName = profileData.name?.["family-name"]?.value || ""
-  const name = `${givenNames} ${familyName}`.trim() || 
-               profileData.name?.["credit-name"]?.value || 
-               "Nome não disponível"
-
-  // Extract country
-  const addresses = profileData.addresses?.address || []
-  const country = addresses.length > 0 ? addresses[0].country?.value : "País não informado"
-
-  // Apply country filter
-  if (filterCountry && filterCountry !== "all") {
-    const countryNames = COUNTRY_CODES[filterCountry] || [filterCountry]
-    const countryMatches = countryNames.some(countryName => 
-      country.toLowerCase().includes(countryName.toLowerCase()) ||
-      countryName.toLowerCase().includes(country.toLowerCase())
-    )
-    
-    if (!countryMatches && country !== "País não informado") {
-      return null
-    }
-  }
-
-  // Extract keywords
-  const keywordData = profileData.keywords?.keyword || []
-  const keywords = keywordData.slice(0, 10).map((k: any) => k.content).filter(Boolean)
-
-  return {
-    orcidId,
-    name,
-    country,
-    keywords,
-    citationCount: "-", // Will be filled by external data if available
-    publicationCount: "-", // Will be filled by external data if available
-    rank: 0,
-  }
-}
-
-async function getPublicationDataEfficiently(orcidId: string, name: string): Promise<{ citationCount: number | string, publicationCount: number | string }> {
-  try {
-    // First try to get ORCID works data
-    const worksResponse = await Promise.race([
-      makeAuthenticatedOrcidRequest(`https://pub.orcid.org/v3.0/${orcidId}/works`),
-      new Promise<Response>((_, reject) => 
-        setTimeout(() => reject(new Error('ORCID works timeout')), 8000)
-      )
-    ])
-
-    let orcidPublicationCount = 0
-    if (worksResponse.ok) {
-      const worksData = await worksResponse.json()
-      orcidPublicationCount = worksData.group?.length || 0
-    }
-
-    // Try to get citation data from external sources
-    try {
-      console.log(`Attempting to get citation data for ${name}`)
-      const enrichmentResult = await Promise.race([
-        enrichWithExternalData(name, {
-          publications: [],
-          totalCitations: 0,
-          hIndex: 0
-        }),
-        new Promise<any>((_, reject) => 
-          setTimeout(() => reject(new Error('Enrichment timeout')), 12000)
-        )
-      ])
-
-      if (enrichmentResult && enrichmentResult.totalCitations !== undefined) {
-        const citations = typeof enrichmentResult.totalCitations === 'number' ? 
-                         enrichmentResult.totalCitations : 
-                         (enrichmentResult.totalCitations === "-" ? 0 : parseInt(String(enrichmentResult.totalCitations)) || 0)
-        
-        const publications = enrichmentResult.publications?.length || orcidPublicationCount
-        
-        console.log(`Successfully enriched ${name}: ${citations} citations, ${publications} publications`)
-        return {
-          citationCount: citations > 0 ? citations : "-",
-          publicationCount: publications > 0 ? publications : orcidPublicationCount || "-"
-        }
-      }
-    } catch (enrichmentError) {
-      console.log(`Enrichment failed for ${name}:`, enrichmentError instanceof Error ? enrichmentError.message : 'Unknown error')
-    }
-
-    // Fallback to ORCID data only
-    return {
-      citationCount: "-",
-      publicationCount: orcidPublicationCount > 0 ? orcidPublicationCount : "-"
-    }
-
-  } catch (error) {
-    console.error(`Error getting publication data for ${orcidId}:`, error)
-    return {
-      citationCount: "-",
-      publicationCount: "-"
-    }
-  }
-}
-
-// New helper function to get a sample of ORCID publications for citation estimation
-async function getOrcidPublicationSample(orcidId: string, sampleSize: number): Promise<{ estimatedCitations: number | string }> {
-  try {
-    const worksResponse = await makeAuthenticatedOrcidRequest(`https://pub.orcid.org/v3.0/${orcidId}/works`)
-    
-    if (!worksResponse.ok) {
-      throw new Error('Failed to get works')
-    }
-    
-    const worksData = await worksResponse.json()
-    const workGroups = worksData.group || []
-    
-    if (workGroups.length === 0) {
-      return { estimatedCitations: "-" }
-    }
-    
-    // Get details for a few recent publications
-    const sampleWorks = workGroups.slice(0, sampleSize)
-    let totalCitations = 0
-    let worksWithCitations = 0
-    
-    const detailPromises = sampleWorks.map(async (group: any) => {
-      const workSummary = group["work-summary"]?.[0]
-      if (!workSummary) return null
-      
-      try {
-        const workDetailResponse = await Promise.race([
-          makeAuthenticatedOrcidRequest(`https://pub.orcid.org/v3.0/${orcidId}/work/${workSummary["put-code"]}`),
-          new Promise<Response>((_, reject) => 
-            setTimeout(() => reject(new Error('Work detail timeout')), 3000)
-          )
-        ])
-        
-        if (workDetailResponse.ok) {
-          const workDetail = await workDetailResponse.json()
-          
-          // Look for citation count in external identifiers or other fields
-          const externalIds = workDetail["external-ids"]?.["external-id"] || []
-          const title = workDetail.title?.title?.value || ""
-          
-          // This is a basic estimation - in practice, you'd need external APIs for real citation counts
-          // For now, we'll return a placeholder indicating we have publication data
-          return { title, year: workDetail["publication-date"]?.year?.value }
-        }
-      } catch (error) {
-        return null
-      }
-      
-      return null
-    })
-    
-    const results = await Promise.allSettled(detailPromises)
-    const validResults = results.filter(r => r.status === 'fulfilled' && r.value).length
-    
-    // If we successfully got publication details, indicate that external enrichment might work
-    if (validResults > 0) {
-      return { estimatedCitations: "pending" } // Signal that external enrichment should be tried
-    }
-    
-    return { estimatedCitations: "-" }
-  } catch (error) {
-    return { estimatedCitations: "-" }
-  }
+  return researchers.slice(0, 25) // Limit to top 25 results
 }
