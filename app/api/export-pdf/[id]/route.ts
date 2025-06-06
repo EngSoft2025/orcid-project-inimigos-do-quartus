@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import jsPDF from 'jspdf'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -13,18 +14,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     const researcher = await researcherResponse.json()
 
-    // Generate PDF content using a proper PDF structure with UTF-8 support
-    const pdfContent = generateProfessionalPDF(researcher)
+    // Generate PDF using jsPDF
+    const pdfBuffer = generateProfessionalPDF(researcher)
 
-    const response = new NextResponse(pdfContent, {
+    const response = new NextResponse(pdfBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${researcher.name.replace(/[^a-zA-Z0-9-_\s]/g, "_")}-curriculo.pdf"`,
-        "Content-Transfer-Encoding": "binary",
+        "Content-Disposition": `attachment; filename="${sanitizeFilename(researcher.name)}-curriculo.pdf"`,
       },
     })
 
     return response
+
   } catch (error) {
     console.error("PDF export error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -32,313 +33,227 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 function generateProfessionalPDF(researcher: any): Buffer {
-  // Create PDF content with proper UTF-8 encoding and better character support
-  const contentBody = `BT
-/F2 16 Tf
-50 750 Td
-(CURRÍCULO ACADÊMICO) Tj
-0 -30 Td
-/F2 14 Tf
-(Nome: ${sanitizeTextForPDF(researcher.name)}) Tj
-0 -20 Td
-(ORCID ID: ${researcher.orcidId}) Tj
-0 -20 Td
-(País: ${sanitizeTextForPDF(researcher.country)}) Tj
-${researcher.website ? `0 -20 Td
-(Website: ${researcher.website}) Tj` : ''}
-${researcher.email ? `0 -20 Td
-(Email: ${researcher.email}) Tj` : ''}
-
-0 -40 Td
-/F2 12 Tf
-(BIOGRAFIA) Tj
-0 -5 Td
-(________________________________________________) Tj
-0 -20 Td
-/F1 10 Tf
-${generateBiographyText(researcher.biography)}
-
-0 -30 Td
-/F2 12 Tf
-(MÉTRICAS ACADÊMICAS) Tj
-0 -5 Td
-(________________________________________________) Tj
-0 -20 Td
-/F1 10 Tf
-(• Total de Citações: ${researcher.totalCitations || '-'}) Tj
-0 -15 Td
-(• Índice H: ${researcher.hIndex || '-'}) Tj
-0 -15 Td
-(• Número de Publicações: ${researcher.publications?.length || 0}) Tj
-
-0 -30 Td
-/F2 12 Tf
-(ÁREAS DE EXPERTISE) Tj
-0 -5 Td
-(________________________________________________) Tj
-0 -20 Td
-/F1 10 Tf
-${generateKeywordsText(researcher.keywords)}
-
-${researcher.employments && researcher.employments.length > 0 ? `
-0 -30 Td
-/F2 12 Tf
-(AFILIAÇÕES PROFISSIONAIS) Tj
-0 -5 Td
-(________________________________________________) Tj
-0 -20 Td
-/F1 10 Tf
-${generateEmploymentsText(researcher.employments)}` : ''}
-
-${researcher.educations && researcher.educations.length > 0 ? `
-0 -30 Td
-/F2 12 Tf
-(FORMAÇÃO ACADÊMICA) Tj
-0 -5 Td
-(________________________________________________) Tj
-0 -20 Td
-/F1 10 Tf
-${generateEducationsText(researcher.educations)}` : ''}
-
-0 -30 Td
-/F2 12 Tf
-(PUBLICAÇÕES) Tj
-0 -5 Td
-(________________________________________________) Tj
-${generatePublicationsText(researcher.publications)}
-ET`
-
-  const pdfHeader = `%PDF-1.4
-1 0 obj
-<<
-/Type /Catalog
-/Pages 2 0 R
->>
-endobj
-
-2 0 obj
-<<
-/Type /Pages
-/Kids [3 0 R]
-/Count 1
->>
-endobj
-
-3 0 obj
-<<
-/Type /Page
-/Parent 2 0 R
-/MediaBox [0 0 612 792]
-/Contents 4 0 R
-/Resources <<
-  /Font <<
-    /F1 5 0 R
-    /F2 6 0 R
-  >>
->>
->>
-endobj
-
-5 0 obj
-<<
-/Type /Font
-/Subtype /Type1
-/BaseFont /Helvetica
-/Encoding /WinAnsiEncoding
->>
-endobj
-
-6 0 obj
-<<
-/Type /Font
-/Subtype /Type1
-/BaseFont /Helvetica-Bold
-/Encoding /WinAnsiEncoding
->>
-endobj
-
-4 0 obj
-<<
-/Length ${contentBody.length}
->>
-stream
-${contentBody}
-endstream
-endobj
-
-xref
-0 7
-0000000000 65535 f 
-0000000010 00000 n 
-0000000079 00000 n 
-0000000173 00000 n 
-0000000301 00000 n 
-0000000398 00000 n 
-0000000520 00000 n 
-trailer
-<<
-/Size 7
-/Root 1 0 R
->>
-startxref`
-
-  const content: string = `${pdfHeader}
-${pdfHeader.length + contentBody.length + 400}
-%%EOF`
-
-  return Buffer.from(content, 'latin1')
-}
-
-function sanitizeTextForPDF(text: string): string {
-  if (!text) return ''
+  const doc = new jsPDF()
   
-  // Map common Portuguese characters to their closest ASCII equivalents
-  const charMap: { [key: string]: string } = {
-    'á': 'á', 'à': 'à', 'ã': 'ã', 'â': 'â',
-    'Á': 'Á', 'À': 'À', 'Ã': 'Ã', 'Â': 'Â',
-    'é': 'é', 'ê': 'ê',
-    'É': 'É', 'Ê': 'Ê',
-    'í': 'í', 'Í': 'Í',
-    'ó': 'ó', 'ô': 'ô', 'õ': 'õ',
-    'Ó': 'Ó', 'Ô': 'Ô', 'Õ': 'Õ',
-    'ú': 'ú', 'Ú': 'Ú',
-    'ç': 'ç', 'Ç': 'Ç',
-    'ñ': 'ñ', 'Ñ': 'Ñ'
-  }
-  
-  return text
-    .split('')
-    .map(char => charMap[char] || char)
-    .join('')
-    .replace(/[()\\]/g, '\\$&') // Escape PDF special characters
-    .substring(0, 120) // Reasonable length limit
-}
+  // Set up fonts and styling
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 20
+  const contentWidth = pageWidth - (margin * 2)
+  let yPosition = margin + 10
 
-function calculateContentLength(researcher: any): number {
-  // More accurate estimate for content length
-  const baseLength = 2000
-  const biographyLength = (researcher.biography || '').length
-  const publicationsLength = (researcher.publications || []).length * 150
-  const employmentLength = (researcher.employments || []).length * 80
-  const educationLength = (researcher.educations || []).length * 60
-  const keywordLength = (researcher.keywords || []).join(', ').length
-  
-  return baseLength + biographyLength + publicationsLength + employmentLength + educationLength + keywordLength
-}
-
-function generateBiographyText(biography: string): string {
-  if (!biography) return '(Biografia não disponível) Tj'
-  
-  const sanitized = sanitizeTextForPDF(biography)
-  const lines = splitIntoLines(sanitized, 80)
-  
-  return lines.map((line, index) => {
-    if (index === 0) return `(${line}) Tj`
-    return `0 -12 Td\n(${line}) Tj`
-  }).join('\n')
-}
-
-function generateKeywordsText(keywords: string[]): string {
-  if (!keywords || keywords.length === 0) {
-    return '(Áreas de expertise não informadas) Tj'
-  }
-  
-  const sanitizedKeywords = keywords.map(k => sanitizeTextForPDF(k)).filter(Boolean)
-  const keywordText = sanitizedKeywords.join(', ')
-  const lines = splitIntoLines(keywordText, 80)
-  
-  return lines.map((line, index) => {
-    if (index === 0) return `(${line}) Tj`
-    return `0 -12 Td\n(${line}) Tj`
-  }).join('\n')
-}
-
-function generateEmploymentsText(employments: any[]): string {
-  if (!employments || employments.length === 0) {
-    return '(Afiliações não informadas) Tj'
-  }
-  
-  return employments.slice(0, 10).map((emp, index) => {
-    const role = sanitizeTextForPDF(emp.role || 'Cargo não informado')
-    const org = sanitizeTextForPDF(emp.organization || 'Organização não informada')
-    const period = emp.startDate || emp.endDate ? 
-      `${emp.startDate || ''} - ${emp.endDate || 'Presente'}` : ''
-    
-    let text = index === 0 ? 
-      `(• ${role}) Tj` : 
-      `0 -12 Td\n(• ${role}) Tj`
-    
-    text += `\n0 -12 Td\n(  ${org}) Tj`
-    
-    if (period) {
-      text += `\n0 -12 Td\n(  ${period}) Tj`
+  // Helper function to add new page if needed
+  const checkPageBreak = (neededHeight: number = 15) => {
+    if (yPosition + neededHeight > pageHeight - margin) {
+      doc.addPage()
+      yPosition = margin + 10
+      return true
     }
-    
-    return text
-  }).join('\n0 -15 Td\n')
-}
+    return false
+  }
 
-function generateEducationsText(educations: any[]): string {
-  if (!educations || educations.length === 0) {
-    return '(Formação não informada) Tj'
+  // Helper function to add wrapped text
+  const addWrappedText = (text: string, x: number, fontSize: number = 10, fontStyle: string = 'normal', maxWidth?: number) => {
+    doc.setFontSize(fontSize)
+    doc.setFont('helvetica', fontStyle)
+    
+    const textWidth = maxWidth || contentWidth
+    const lines = doc.splitTextToSize(text, textWidth)
+    
+    lines.forEach((line: string, index: number) => {
+      checkPageBreak()
+      doc.text(line, x, yPosition)
+      yPosition += fontSize * 0.6 // Line height
+    })
+    
+    return lines.length
+  }
+
+  // Helper function to add section title
+  const addSectionTitle = (title: string) => {
+    checkPageBreak(25)
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text(title, margin, yPosition)
+    yPosition += 15
+  }
+
+  // Header
+  doc.setFillColor(41, 128, 185)
+  doc.rect(0, 0, pageWidth, 30, 'F')
+  
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(20)
+  doc.setFont('helvetica', 'bold')
+  doc.text('CURRÍCULO ACADÊMICO', margin, 20)
+  
+  yPosition = 45
+  doc.setTextColor(0, 0, 0)
+
+  // Personal Information Section
+  addSectionTitle('INFORMAÇÕES PESSOAIS')
+
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'normal')
+  
+  // Name
+  addWrappedText(`Nome: ${researcher.name || 'Não informado'}`, margin, 11)
+  yPosition += 3
+  
+  // ORCID ID
+  addWrappedText(`ORCID ID: ${researcher.orcidId}`, margin, 11)
+  yPosition += 3
+  
+  // Country
+  addWrappedText(`País: ${researcher.country || 'Não informado'}`, margin, 11)
+  yPosition += 3
+  
+  // Email (if available)
+  if (researcher.email) {
+    addWrappedText(`Email: ${researcher.email}`, margin, 11)
+    yPosition += 3
   }
   
-  return educations.slice(0, 10).map((edu, index) => {
-    const degree = sanitizeTextForPDF(edu.degree || 'Título não informado')
-    const org = sanitizeTextForPDF(edu.organization || 'Instituição não informada')
-    const year = edu.year ? ` (${edu.year})` : ''
+  // Website (if available)
+  if (researcher.website) {
+    addWrappedText(`Website: ${researcher.website}`, margin, 11)
+    yPosition += 3
+  }
+
+  yPosition += 10
+
+  // Academic Metrics Section
+  addSectionTitle('MÉTRICAS ACADÊMICAS')
+
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'normal')
+  
+  addWrappedText(`• Total de Citações: ${researcher.totalCitations || '-'}`, margin, 11)
+  yPosition += 3
+  addWrappedText(`• Índice H: ${researcher.hIndex || '-'}`, margin, 11)
+  yPosition += 3
+  addWrappedText(`• Número de Publicações: ${researcher.publications?.length || 0}`, margin, 11)
+  yPosition += 10
+
+  // Biography Section (if available)
+  if (researcher.biography && researcher.biography.trim()) {
+    addSectionTitle('BIOGRAFIA')
+
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    addWrappedText(researcher.biography, margin)
+    yPosition += 10
+  }
+
+  // Keywords Section
+  if (researcher.keywords && researcher.keywords.length > 0) {
+    addSectionTitle('ÁREAS DE EXPERTISE')
+
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    const keywordsText = researcher.keywords.join(', ')
+    addWrappedText(keywordsText, margin)
+    yPosition += 10
+  }
+
+  // Employment Section
+  if (researcher.employments && researcher.employments.length > 0) {
+    addSectionTitle('AFILIAÇÕES PROFISSIONAIS')
+
+    researcher.employments.slice(0, 10).forEach((emp: any) => {
+      checkPageBreak(30)
+      
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      addWrappedText(`• ${emp.role || 'Cargo não informado'}`, margin, 11, 'bold')
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      addWrappedText(`  ${emp.organization || 'Organização não informada'}`, margin + 5, 10)
+      
+      if (emp.startDate || emp.endDate) {
+        const period = `${emp.startDate || ''} - ${emp.endDate || 'Presente'}`
+        addWrappedText(`  Período: ${period}`, margin + 5, 10)
+      }
+      
+      yPosition += 5
+    })
+    yPosition += 5
+  }
+
+  // Education Section
+  if (researcher.educations && researcher.educations.length > 0) {
+    addSectionTitle('FORMAÇÃO ACADÊMICA')
+
+    researcher.educations.slice(0, 10).forEach((edu: any) => {
+      checkPageBreak(25)
+      
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      addWrappedText(`• ${edu.degree || 'Título não informado'}`, margin, 11, 'bold')
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      addWrappedText(`  ${edu.organization || 'Instituição não informada'}`, margin + 5, 10)
+      
+      if (edu.year) {
+        addWrappedText(`  Ano: ${edu.year}`, margin + 5, 10)
+      }
+      
+      yPosition += 5
+    })
+    yPosition += 5
+  }
+
+  // Publications Section
+  if (researcher.publications && researcher.publications.length > 0) {
+    addSectionTitle('PUBLICAÇÕES')
+
+    researcher.publications.forEach((pub: any, index: number) => {
+      checkPageBreak(35)
+      
+      // Publication number and title
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      addWrappedText(`${index + 1}. ${pub.title || 'Título não disponível'}`, margin, 10, 'bold')
+      
+      // Journal and year
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      const journalInfo = `Revista: ${pub.journal || 'Não informada'} | Ano: ${pub.year || 'Não informado'}`
+      addWrappedText(journalInfo, margin + 5, 9)
+      
+      // Citations
+      const citations = typeof pub.citations === 'number' ? pub.citations : (pub.citations || '-')
+      addWrappedText(`Citações: ${citations}`, margin + 5, 9)
+      
+      // DOI (if available)
+      if (pub.doi) {
+        addWrappedText(`DOI: ${pub.doi}`, margin + 5, 9)
+      }
+      
+      yPosition += 8
+    })
+  }
+
+  // Footer with generation date
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(128, 128, 128)
     
-    const text = index === 0 ? 
-      `(• ${degree}) Tj\n0 -12 Td\n(  ${org}${year}) Tj` : 
-      `0 -12 Td\n(• ${degree}) Tj\n0 -12 Td\n(  ${org}${year}) Tj`
-    
-    return text
-  }).join('\n0 -15 Td\n')
+    const footerText = `Gerado em ${new Date().toLocaleDateString('pt-BR')} - Página ${i} de ${pageCount}`
+    doc.text(footerText, margin, pageHeight - 10)
+  }
+
+  return Buffer.from(doc.output('arraybuffer'))
 }
 
-function generatePublicationsText(publications: any[]): string {
-  if (!publications || publications.length === 0) {
-    return '\n0 -20 Td\n/F1 10 Tf\n(Nenhuma publicação encontrada) Tj'
-  }
-  
-  let yPosition = -20
-  const pubTexts = publications.slice(0, 15).map((pub, index) => {
-    const title = sanitizeTextForPDF(pub.title || 'Título não disponível')
-    const journal = sanitizeTextForPDF(pub.journal || 'Revista não informada')
-    const year = pub.year || 'Ano não informado'
-    const citations = typeof pub.citations === 'number' ? pub.citations : (pub.citations || '-')
-    
-    let text = `0 ${yPosition} Td\n/F1 10 Tf\n(${index + 1}. ${title}) Tj`
-    yPosition -= 12
-    text += `\n0 -12 Td\n(   Revista: ${journal}) Tj`
-    text += `\n0 -12 Td\n(   Ano: ${year} | Citações: ${citations}) Tj`
-    
-    if (pub.doi) {
-      text += `\n0 -12 Td\n(   DOI: ${sanitizeTextForPDF(pub.doi)}) Tj`
-    }
-    
-    yPosition -= 20
-    
-    return text
-  })
-  
-  return pubTexts.join('\n')
-}
-
-function splitIntoLines(text: string, maxChars: number): string[] {
-  const words = text.split(' ')
-  const lines: string[] = []
-  let currentLine = ''
-  
-  for (const word of words) {
-    if ((currentLine + ' ' + word).length <= maxChars) {
-      currentLine += (currentLine ? ' ' : '') + word
-    } else {
-      if (currentLine) lines.push(currentLine)
-      currentLine = word.substring(0, maxChars) // Truncate very long words
-    }
-  }
-  
-  if (currentLine) lines.push(currentLine)
-  return lines.filter(line => line.trim()) // Remove empty lines
+function sanitizeFilename(filename: string): string {
+  return filename
+    .replace(/[^a-zA-Z0-9\s-_]/g, '')
+    .replace(/\s+/g, '_')
+    .substring(0, 50)
 }
