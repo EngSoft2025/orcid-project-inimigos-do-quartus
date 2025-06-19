@@ -21,7 +21,7 @@ interface CrossRefResponse {
 
 // Enhanced cache with better organization
 const cache = new Map<string, any>()
-const CACHE_DURATION = 15 * 60 * 1000 // 15 minutes
+const CACHE_DURATION = 30 * 60 * 1000 // 15 minutes
 const CROSSREF_CACHE = new Map<string, any>()
 
 // Configuration for API requests with better resilience

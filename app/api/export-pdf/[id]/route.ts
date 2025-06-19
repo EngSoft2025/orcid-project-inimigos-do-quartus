@@ -52,200 +52,272 @@ function generateProfessionalPDF(researcher: any): Buffer {
     return false
   }
 
-  // Helper function to add wrapped text
-  const addWrappedText = (text: string, x: number, fontSize: number = 10, fontStyle: string = 'normal', maxWidth?: number) => {
+  // Helper function to add wrapped text - REDUZIDO
+  const addWrappedText = (text: string, x: number, fontSize: number = 9, fontStyle: string = 'normal', maxWidth?: number) => {
     doc.setFontSize(fontSize)
     doc.setFont('helvetica', fontStyle)
     
     const textWidth = maxWidth || contentWidth
     const lines = doc.splitTextToSize(text, textWidth)
     
-    lines.forEach((line: string, index: number) => {
+    // LIMITAR A 3 LINHAS MÁXIMO
+    const limitedLines = lines.slice(0, 3)
+    
+    limitedLines.forEach((line: string, index: number) => {
       checkPageBreak()
       doc.text(line, x, yPosition)
-      yPosition += fontSize * 0.6 // Line height
+      yPosition += fontSize * 0.5 // Reduzir espaçamento
     })
     
-    return lines.length
+    return limitedLines.length
   }
 
-  // Helper function to add section title
+  // Helper function to add section title - MENOR
   const addSectionTitle = (title: string) => {
-    checkPageBreak(25)
-    doc.setFontSize(14)
+    checkPageBreak(20)
+    doc.setFontSize(12)
     doc.setFont('helvetica', 'bold')
     doc.text(title, margin, yPosition)
-    yPosition += 15
+    yPosition += 10 // Reduzir espaçamento
   }
 
-  // Header
+  // Header - COMPACTO
   doc.setFillColor(41, 128, 185)
-  doc.rect(0, 0, pageWidth, 30, 'F')
+  doc.rect(0, 0, pageWidth, 25, 'F')
   
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(20)
+  doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text('CURRÍCULO ACADÊMICO', margin, 20)
+  doc.text('CURRÍCULO ACADÊMICO', margin, 17)
   
-  yPosition = 45
+  yPosition = 35
   doc.setTextColor(0, 0, 0)
 
-  // Personal Information Section
-  addSectionTitle('INFORMAÇÕES PESSOAIS')
+  // Personal Information Section - RESUMIDO
+  addSectionTitle('DADOS PESSOAIS')
 
-  doc.setFontSize(11)
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   
-  // Name
-  addWrappedText(`Nome: ${researcher.name || 'Não informado'}`, margin, 11)
-  yPosition += 3
+  // Nome e ORCID em uma linha
+  addWrappedText(`${researcher.name || 'Não informado'} | ORCID: ${researcher.orcidId}`, margin, 10)
+  addWrappedText(`País: ${researcher.country || 'Não informado'}`, margin, 10)
   
-  // ORCID ID
-  addWrappedText(`ORCID ID: ${researcher.orcidId}`, margin, 11)
-  yPosition += 3
-  
-  // Country
-  addWrappedText(`País: ${researcher.country || 'Não informado'}`, margin, 11)
-  yPosition += 3
-  
-  // Email (if available)
+  // Email apenas se disponível
   if (researcher.email) {
-    addWrappedText(`Email: ${researcher.email}`, margin, 11)
-    yPosition += 3
-  }
-  
-  // Website (if available)
-  if (researcher.website) {
-    addWrappedText(`Website: ${researcher.website}`, margin, 11)
-    yPosition += 3
+    addWrappedText(`Email: ${researcher.email}`, margin, 10)
   }
 
-  yPosition += 10
+  yPosition += 8
 
-  // Academic Metrics Section
+  // Academic Metrics Section - COMPACTO
   addSectionTitle('MÉTRICAS ACADÊMICAS')
 
-  doc.setFontSize(11)
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   
-  addWrappedText(`• Total de Citações: ${researcher.totalCitations || '-'}`, margin, 11)
-  yPosition += 3
-  addWrappedText(`• Índice H: ${researcher.hIndex || '-'}`, margin, 11)
-  yPosition += 3
-  addWrappedText(`• Número de Publicações: ${researcher.publications?.length || 0}`, margin, 11)
-  yPosition += 10
+  const metrics = [
+    `Citações: ${researcher.totalCitations || '-'}`,
+    `Índice H: ${researcher.hIndex || '-'}`,
+    `Publicações: ${researcher.publications?.length || 0}`
+  ].join(' | ')
+  
+  addWrappedText(metrics, margin, 10)
+  yPosition += 8
 
-  // Biography Section (if available)
-  if (researcher.biography && researcher.biography.trim()) {
-    addSectionTitle('BIOGRAFIA')
-
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'normal')
-    addWrappedText(researcher.biography, margin)
-    yPosition += 10
-  }
-
-  // Keywords Section
+  // Keywords Section - LIMITADO
   if (researcher.keywords && researcher.keywords.length > 0) {
     addSectionTitle('ÁREAS DE EXPERTISE')
 
-    doc.setFontSize(10)
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
-    const keywordsText = researcher.keywords.join(', ')
-    addWrappedText(keywordsText, margin)
-    yPosition += 10
+    // Limitar a 10 keywords
+    const limitedKeywords = researcher.keywords.slice(0, 10).join(', ')
+    addWrappedText(limitedKeywords, margin)
+    yPosition += 8
   }
 
-  // Employment Section
+  // Employment Section - APENAS OS 3 MAIS RECENTES
   if (researcher.employments && researcher.employments.length > 0) {
-    addSectionTitle('AFILIAÇÕES PROFISSIONAIS')
+    addSectionTitle('AFILIAÇÕES PRINCIPAIS')
 
-    researcher.employments.slice(0, 10).forEach((emp: any) => {
-      checkPageBreak(30)
-      
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      addWrappedText(`• ${emp.role || 'Cargo não informado'}`, margin, 11, 'bold')
+    researcher.employments.slice(0, 3).forEach((emp: any) => {
+      checkPageBreak(20)
       
       doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      addWrappedText(`  ${emp.organization || 'Organização não informada'}`, margin + 5, 10)
+      doc.setFont('helvetica', 'bold')
+      addWrappedText(`${emp.role || 'Cargo não informado'}`, margin, 10, 'bold')
       
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      const orgInfo = `${emp.organization || 'Organização não informada'}`
       if (emp.startDate || emp.endDate) {
-        const period = `${emp.startDate || ''} - ${emp.endDate || 'Presente'}`
-        addWrappedText(`  Período: ${period}`, margin + 5, 10)
+        const period = `(${emp.startDate || ''} - ${emp.endDate || 'Presente'})`
+        addWrappedText(`${orgInfo} ${period}`, margin + 5, 9)
+      } else {
+        addWrappedText(orgInfo, margin + 5, 9)
       }
       
-      yPosition += 5
+      yPosition += 3
     })
     yPosition += 5
   }
 
-  // Education Section
+  // Education Section - APENAS OS 3 PRINCIPAIS
   if (researcher.educations && researcher.educations.length > 0) {
     addSectionTitle('FORMAÇÃO ACADÊMICA')
 
-    researcher.educations.slice(0, 10).forEach((edu: any) => {
-      checkPageBreak(25)
-      
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      addWrappedText(`• ${edu.degree || 'Título não informado'}`, margin, 11, 'bold')
+    researcher.educations.slice(0, 3).forEach((edu: any) => {
+      checkPageBreak(15)
       
       doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      addWrappedText(`${edu.degree || 'Título não informado'}`, margin, 10, 'bold')
+      
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
-      addWrappedText(`  ${edu.organization || 'Instituição não informada'}`, margin + 5, 10)
+      const eduInfo = `${edu.organization || 'Instituição não informada'}${edu.year ? ` (${edu.year})` : ''}`
+      addWrappedText(eduInfo, margin + 5, 9)
       
-      if (edu.year) {
-        addWrappedText(`  Ano: ${edu.year}`, margin + 5, 10)
-      }
-      
-      yPosition += 5
+      yPosition += 3
     })
     yPosition += 5
   }
 
-  // Publications Section
+  // Publications Section - APENAS AS 5 MAIS CITADAS
   if (researcher.publications && researcher.publications.length > 0) {
-    addSectionTitle('PUBLICAÇÕES')
+    addSectionTitle('PRINCIPAIS PUBLICAÇÕES')
 
-    researcher.publications.forEach((pub: any, index: number) => {
-      checkPageBreak(35)
+    // Ordenar por citações e pegar apenas as 5 principais
+    const topPublications = researcher.publications
+      .sort((a: any, b: any) => {
+        const aCitations = typeof a.citations === 'number' ? a.citations : 0
+        const bCitations = typeof b.citations === 'number' ? b.citations : 0
+        return bCitations - aCitations
+      })
+      .slice(0, 5)
+
+    topPublications.forEach((pub: any, index: number) => {
+      checkPageBreak(25)
       
-      // Publication number and title
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'bold')
-      addWrappedText(`${index + 1}. ${pub.title || 'Título não disponível'}`, margin, 10, 'bold')
-      
-      // Journal and year
+      // Título compacto
       doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      addWrappedText(`${index + 1}. ${pub.title || 'Título não disponível'}`, margin, 9, 'bold')
+      
+      // Info resumida em uma linha
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
-      const journalInfo = `Revista: ${pub.journal || 'Não informada'} | Ano: ${pub.year || 'Não informado'}`
-      addWrappedText(journalInfo, margin + 5, 9)
+      const pubInfo = [
+        pub.journal || 'Revista não informada',
+        pub.year || 'Ano não informado',
+        `Citações: ${pub.citations || '-'}`
+      ].join(' | ')
       
-      // Citations
-      const citations = typeof pub.citations === 'number' ? pub.citations : (pub.citations || '-')
-      addWrappedText(`Citações: ${citations}`, margin + 5, 9)
-      
-      // DOI (if available)
-      if (pub.doi) {
-        addWrappedText(`DOI: ${pub.doi}`, margin + 5, 9)
-      }
-      
-      yPosition += 8
+      addWrappedText(pubInfo, margin + 5, 8)
+      yPosition += 5
     })
   }
 
-  // Footer with generation date
+  // Biography Section - MAIS EXTENSA
+  if (researcher.biography && researcher.biography.trim()) {
+    addSectionTitle('RESUMO PROFISSIONAL')
+
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    
+    // Aumentar limite para 800 caracteres e melhorar formatação
+    let extendedBio = researcher.biography
+    
+    // Se a biografia for muito curta, tentar complementar com informações das afiliações
+    if (extendedBio.length < 300 && researcher.employments && researcher.employments.length > 0) {
+      const currentEmployment = researcher.employments[0]
+      if (currentEmployment && currentEmployment.organization) {
+        extendedBio += ` Atualmente vinculado(a) à ${currentEmployment.organization}`
+        if (currentEmployment.role) {
+          extendedBio += ` como ${currentEmployment.role}`
+        }
+        extendedBio += '.'
+      }
+    }
+    
+    // Se ainda for curta, adicionar informações sobre áreas de pesquisa
+    if (extendedBio.length < 400 && researcher.keywords && researcher.keywords.length > 0) {
+      const mainKeywords = researcher.keywords.slice(0, 5).join(', ')
+      extendedBio += ` Suas principais áreas de pesquisa incluem: ${mainKeywords}.`
+    }
+    
+    // Adicionar informações sobre produção acadêmica se disponível
+    if (extendedBio.length < 500 && researcher.publications && researcher.publications.length > 0) {
+      const publicationCount = researcher.publications.length
+      const totalCitations = researcher.totalCitations || 0
+      
+      if (publicationCount > 0) {
+        extendedBio += ` Possui ${publicationCount} publicação${publicationCount > 1 ? 'ões' : ''} registrada${publicationCount > 1 ? 's' : ''}`
+        
+        if (totalCitations > 0) {
+          extendedBio += ` com um total de ${totalCitations} citação${totalCitations > 1 ? 'ões' : ''}`
+        }
+        
+        if (researcher.hIndex && researcher.hIndex !== '-') {
+          extendedBio += ` e índice H de ${researcher.hIndex}`
+        }
+        
+        extendedBio += '.'
+      }
+    }
+    
+    // Limitar a 800 caracteres mas de forma inteligente (quebrar na última frase completa)
+    if (extendedBio.length > 800) {
+      let truncated = extendedBio.substring(0, 800)
+      const lastPeriod = truncated.lastIndexOf('.')
+      const lastExclamation = truncated.lastIndexOf('!')
+      const lastQuestion = truncated.lastIndexOf('?')
+      
+      const lastSentenceEnd = Math.max(lastPeriod, lastExclamation, lastQuestion)
+      
+      if (lastSentenceEnd > 600) { // Se há uma frase completa em uma posição razoável
+        extendedBio = truncated.substring(0, lastSentenceEnd + 1)
+      } else {
+        extendedBio = truncated + '...'
+      }
+    }
+    
+    // Quebrar o texto em parágrafos se for muito longo
+    const sentences = extendedBio.split(/[.!?]+/).filter((s: string) => s.trim().length > 0)
+    
+    if (sentences.length > 3) {
+      // Criar parágrafos: primeiro com 2-3 frases, resto em outro parágrafo
+      const firstParagraph = sentences.slice(0, 2).join('. ') + '.'
+      const secondParagraph = sentences.slice(2).join('. ') + '.'
+      
+      // Adicionar primeiro parágrafo
+      addWrappedText(firstParagraph, margin, 9, 'normal', contentWidth)
+      yPosition += 3
+      
+      // Adicionar segundo parágrafo
+      if (secondParagraph.trim().length > 1) {
+        checkPageBreak(15)
+        addWrappedText(secondParagraph, margin, 9, 'normal', contentWidth)
+      }
+    } else {
+      // Se for texto curto, adicionar normalmente
+      addWrappedText(extendedBio, margin, 9, 'normal', contentWidth)
+    }
+    
+    yPosition += 8
+  }
+
+  // Footer compacto
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
-    doc.setFontSize(8)
+    doc.setFontSize(7)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(128, 128, 128)
     
-    const footerText = `Gerado em ${new Date().toLocaleDateString('pt-BR')} - Página ${i} de ${pageCount}`
-    doc.text(footerText, margin, pageHeight - 10)
+    const footerText = `Gerado em ${new Date().toLocaleDateString('pt-BR')} - Pág. ${i}/${pageCount}`
+    doc.text(footerText, margin, pageHeight - 8)
   }
 
   return Buffer.from(doc.output('arraybuffer'))
