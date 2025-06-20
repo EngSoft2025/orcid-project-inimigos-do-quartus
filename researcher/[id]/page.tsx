@@ -345,7 +345,6 @@ export default function ResearcherProfilePage() {
               <CardTitle className="text-lg">Estatísticas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* All Statistics with consistent layout matching desktop */}
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600 text-sm">Total de Citações</span>
@@ -492,7 +491,7 @@ export default function ResearcherProfilePage() {
 
         {/* Desktop Layout */}
         <div className="hidden lg:grid lg:grid-cols-3 gap-8">
-          {/* Main Content - 2 columns */}
+          {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
             {/* Profile Header */}
             <Card className="p-8">
@@ -697,7 +696,7 @@ export default function ResearcherProfilePage() {
             </Card>
           </div>
 
-          {/* Sidebar - 1 column */}
+          {/* Sidebar */}
           <div className="space-y-8">
             {/* Statistics */}
             <Card>

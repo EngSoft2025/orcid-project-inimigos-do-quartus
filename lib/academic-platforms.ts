@@ -1,4 +1,4 @@
-// Utilities for fetching data from ORCID and CrossRef only
+// Utilities for fetching data from ORCID and CrossRef
 
 interface CrossRefWork {
   title: string[]

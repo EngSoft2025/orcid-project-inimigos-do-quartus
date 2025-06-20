@@ -1,16 +1,20 @@
-import { type NextRequest, NextResponse } from "next/server"
-import OpenAI from "openai"
+import { type NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-})
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, researcherData, conversationHistory } = await request.json()
+    const { message, researcherData, conversationHistory } =
+      await request.json();
 
     if (!message?.trim()) {
-      return NextResponse.json({ error: "Message is required" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Message is required" },
+        { status: 400 }
+      );
     }
 
     // Prepare context about the researcher
@@ -30,7 +34,7 @@ ${researcherData.publications
   .join("\n")}
 
 ${researcherData.biography ? `Biografia: ${researcherData.biography}` : ""}
-`
+`;
 
     // Prepare messages for OpenAI API
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -47,23 +51,23 @@ Instruções:
 - Se não souber algo específico, seja honesto sobre as limitações
 - Mantenha um tom profissional e acadêmico
 - Forneça respostas detalhadas mas concisas
-- Se perguntado sobre áreas não cobertas pelos dados, sugira consultar o perfil ORCID completo`
-      }
-    ]
+- Se perguntado sobre áreas não cobertas pelos dados, sugira consultar o perfil ORCID completo`,
+      },
+    ];
 
     // Add conversation history
     conversationHistory.forEach((msg: any) => {
       messages.push({
         role: msg.role === "user" ? "user" : "assistant",
-        content: msg.content
-      })
-    })
+        content: msg.content,
+      });
+    });
 
     // Add current user message
     messages.push({
       role: "user",
-      content: message
-    })
+      content: message,
+    });
 
     // Call OpenAI API
     const completion = await openai.chat.completions.create({
@@ -71,24 +75,38 @@ Instruções:
       messages: messages,
       max_tokens: 1000,
       temperature: 0.7,
-    })
+    });
 
-    const response = completion.choices[0]?.message?.content || "Desculpe, não consegui gerar uma resposta."
+    const response =
+      completion.choices[0]?.message?.content ||
+      "Desculpe, não consegui gerar uma resposta.";
 
-    return NextResponse.json({ response })
+    return NextResponse.json({ response });
   } catch (error) {
-    console.error("Chat error:", error)
-    
+    console.error("Chat error:", error);
+
     // Handle specific OpenAI errors
     if (error instanceof Error) {
-      if (error.message.includes('API key')) {
-        return NextResponse.json({ error: "Erro de configuração da API" }, { status: 500 })
+      if (error.message.includes("API key")) {
+        return NextResponse.json(
+          { error: "Erro de configuração da API" },
+          { status: 500 }
+        );
       }
-      if (error.message.includes('rate limit')) {
-        return NextResponse.json({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }, { status: 429 })
+      if (error.message.includes("rate limit")) {
+        return NextResponse.json(
+          {
+            error:
+              "Limite de requisições excedido. Tente novamente em alguns minutos.",
+          },
+          { status: 429 }
+        );
       }
     }
-    
-    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 }
+    );
   }
 }

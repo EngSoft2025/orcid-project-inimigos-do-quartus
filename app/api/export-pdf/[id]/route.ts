@@ -42,7 +42,6 @@ function generateProfessionalPDF(researcher: any): Buffer {
   const contentWidth = pageWidth - (margin * 2)
   let yPosition = margin + 10
 
-  // Helper function to add new page if needed
   const checkPageBreak = (neededHeight: number = 15) => {
     if (yPosition + neededHeight > pageHeight - margin) {
       doc.addPage()
@@ -81,7 +80,7 @@ function generateProfessionalPDF(researcher: any): Buffer {
     yPosition += 10 // Reduzir espaçamento
   }
 
-  // Header - COMPACTO
+  // Header
   doc.setFillColor(41, 128, 185)
   doc.rect(0, 0, pageWidth, 25, 'F')
   
@@ -93,17 +92,17 @@ function generateProfessionalPDF(researcher: any): Buffer {
   yPosition = 35
   doc.setTextColor(0, 0, 0)
 
-  // Personal Information Section - RESUMIDO
+  // Personal Information Section
   addSectionTitle('DADOS PESSOAIS')
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
   
-  // Nome e ORCID em uma linha
+  // Name and ORCID
   addWrappedText(`${researcher.name || 'Não informado'} | ORCID: ${researcher.orcidId}`, margin, 10)
   addWrappedText(`País: ${researcher.country || 'Não informado'}`, margin, 10)
   
-  // Email apenas se disponível
+  // Email
   if (researcher.email) {
     addWrappedText(`Email: ${researcher.email}`, margin, 10)
   }
@@ -125,19 +124,18 @@ function generateProfessionalPDF(researcher: any): Buffer {
   addWrappedText(metrics, margin, 10)
   yPosition += 8
 
-  // Keywords Section - LIMITADO
+  // Keywords Section
   if (researcher.keywords && researcher.keywords.length > 0) {
     addSectionTitle('ÁREAS DE EXPERTISE')
 
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
-    // Limitar a 10 keywords
     const limitedKeywords = researcher.keywords.slice(0, 10).join(', ')
     addWrappedText(limitedKeywords, margin)
     yPosition += 8
   }
 
-  // Employment Section - APENAS OS 3 MAIS RECENTES
+  // Employment Section
   if (researcher.employments && researcher.employments.length > 0) {
     addSectionTitle('AFILIAÇÕES PRINCIPAIS')
 
@@ -163,7 +161,7 @@ function generateProfessionalPDF(researcher: any): Buffer {
     yPosition += 5
   }
 
-  // Education Section - APENAS OS 3 PRINCIPAIS
+  // Education Section
   if (researcher.educations && researcher.educations.length > 0) {
     addSectionTitle('FORMAÇÃO ACADÊMICA')
 
@@ -184,11 +182,10 @@ function generateProfessionalPDF(researcher: any): Buffer {
     yPosition += 5
   }
 
-  // Publications Section - APENAS AS 5 MAIS CITADAS
+  // Publications Section
   if (researcher.publications && researcher.publications.length > 0) {
     addSectionTitle('PRINCIPAIS PUBLICAÇÕES')
-
-    // Ordenar por citações e pegar apenas as 5 principais
+    
     const topPublications = researcher.publications
       .sort((a: any, b: any) => {
         const aCitations = typeof a.citations === 'number' ? a.citations : 0
@@ -200,12 +197,10 @@ function generateProfessionalPDF(researcher: any): Buffer {
     topPublications.forEach((pub: any, index: number) => {
       checkPageBreak(25)
       
-      // Título compacto
       doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       addWrappedText(`${index + 1}. ${pub.title || 'Título não disponível'}`, margin, 9, 'bold')
       
-      // Info resumida em uma linha
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       const pubInfo = [
@@ -219,17 +214,16 @@ function generateProfessionalPDF(researcher: any): Buffer {
     })
   }
 
-  // Biography Section - MAIS EXTENSA
+  // Biography Section
   if (researcher.biography && researcher.biography.trim()) {
     addSectionTitle('RESUMO PROFISSIONAL')
 
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
     
-    // Aumentar limite para 800 caracteres e melhorar formatação
     let extendedBio = researcher.biography
     
-    // Se a biografia for muito curta, tentar complementar com informações das afiliações
+    // If the biography is too short, try to supplement it with information about affiliations.
     if (extendedBio.length < 300 && researcher.employments && researcher.employments.length > 0) {
       const currentEmployment = researcher.employments[0]
       if (currentEmployment && currentEmployment.organization) {
@@ -241,13 +235,13 @@ function generateProfessionalPDF(researcher: any): Buffer {
       }
     }
     
-    // Se ainda for curta, adicionar informações sobre áreas de pesquisa
+    // If it is still short, add information about research areas
     if (extendedBio.length < 400 && researcher.keywords && researcher.keywords.length > 0) {
       const mainKeywords = researcher.keywords.slice(0, 5).join(', ')
       extendedBio += ` Suas principais áreas de pesquisa incluem: ${mainKeywords}.`
     }
     
-    // Adicionar informações sobre produção acadêmica se disponível
+    // Add information about academic production if available
     if (extendedBio.length < 500 && researcher.publications && researcher.publications.length > 0) {
       const publicationCount = researcher.publications.length
       const totalCitations = researcher.totalCitations || 0
@@ -267,7 +261,7 @@ function generateProfessionalPDF(researcher: any): Buffer {
       }
     }
     
-    // Limitar a 800 caracteres mas de forma inteligente (quebrar na última frase completa)
+    // Limit to 800 characters but in an intelligent way
     if (extendedBio.length > 800) {
       let truncated = extendedBio.substring(0, 800)
       const lastPeriod = truncated.lastIndexOf('.')
@@ -276,39 +270,35 @@ function generateProfessionalPDF(researcher: any): Buffer {
       
       const lastSentenceEnd = Math.max(lastPeriod, lastExclamation, lastQuestion)
       
-      if (lastSentenceEnd > 600) { // Se há uma frase completa em uma posição razoável
+      if (lastSentenceEnd > 600) {
         extendedBio = truncated.substring(0, lastSentenceEnd + 1)
       } else {
         extendedBio = truncated + '...'
       }
     }
     
-    // Quebrar o texto em parágrafos se for muito longo
+    // Break text into paragraphs if it is too long
     const sentences = extendedBio.split(/[.!?]+/).filter((s: string) => s.trim().length > 0)
     
     if (sentences.length > 3) {
-      // Criar parágrafos: primeiro com 2-3 frases, resto em outro parágrafo
       const firstParagraph = sentences.slice(0, 2).join('. ') + '.'
       const secondParagraph = sentences.slice(2).join('. ') + '.'
       
-      // Adicionar primeiro parágrafo
       addWrappedText(firstParagraph, margin, 9, 'normal', contentWidth)
       yPosition += 3
       
-      // Adicionar segundo parágrafo
       if (secondParagraph.trim().length > 1) {
         checkPageBreak(15)
         addWrappedText(secondParagraph, margin, 9, 'normal', contentWidth)
       }
     } else {
-      // Se for texto curto, adicionar normalmente
       addWrappedText(extendedBio, margin, 9, 'normal', contentWidth)
     }
     
     yPosition += 8
   }
 
-  // Footer compacto
+  // Footer
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)

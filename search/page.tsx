@@ -112,14 +112,11 @@ export default function SearchPage() {
         
         console.error("Search failed:", response.status, errorMessage)
         setResults([])
-        
-        // You could add a toast notification here in the future
-        // For now, just log the error - results will show "no results found"
       }
     } catch (error) {
       console.error("Network error during search:", error)
       setResults([])
-      // Handle network errors gracefully - results will show "no results found"
+      // Handle network errors - results will show "no results found"
     } finally {
       setLoading(false)
     }
