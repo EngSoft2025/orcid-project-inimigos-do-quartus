@@ -1,63 +1,159 @@
-# Trabalho ORCID
+# Interface Centralizada para Pesquisadores ORCID
 
-Documentação para a realização do Trabalho da Disciplina SCC0130 - Engenharia de Software, ministrada pelo Prof. Dr. Seiji Isotani.
+Uma aplicação web moderna e intuitiva para busca, visualização e análise de perfis de pesquisadores através da API pública do ORCID, desenvolvida como parte do Trabalho da Disciplina SCC0130 - Engenharia de Software.
 
-## 1. Requisitos Básicos
+## 🚀 Sobre o Projeto
 
-### 1.1. Grupos
+Esta aplicação foi desenvolvida para resolver as limitações de usabilidade da interface oficial do ORCID, oferecendo uma experiência mais moderna e intuitiva para pesquisadores e acadêmicos. O sistema permite:
 
-O trabalho deverá ser feito em grupos de até 5 alunos. Os alunos de um mesmo grupo devem ser, preferencialmente, da mesma turma (horário).
+- **Busca Inteligente**: Encontre pesquisadores por nome, área de atuação ou país
+- **Perfis Detalhados**: Visualize informações completas sobre publicações, citações e colaborações
+- **Chat com IA**: Interface conversacional para obter insights sobre o trabalho de pesquisadores
+- **Exportação de Relatórios**: Gere PDFs com informações detalhadas dos perfis
+- **Interface Responsiva**: Design moderno que funciona em desktop e mobile
 
-### 1.2. Entrega
+## 🛠️ Tecnologias Utilizadas
 
-A data de entrega final é dia DD/MM.
+- **Framework**: Next.js 15 com App Router
+- **Linguagem**: TypeScript
+- **Estilização**: Tailwind CSS
+- **Componentes**: Radix UI + shadcn/ui
+- **IA**: OpenAI GPT para funcionalidades de chat
+- **Geração de PDF**: jsPDF
+- **Gerenciador de Pacotes**: pnpm
 
-### 1.3. Plágio
+## 📋 Pré-requisitos
 
-O uso de IA (ex: Chat GPT) para produção de código é incentivada, mas plágio não será tolerado.
+- Node.js 18+ 
+- pnpm (recomendado) ou npm
+- Chaves de API válidas (ORCID e OpenAI)
 
-## 2. Requisitos Técnicos
+## ⚙️ Instalação e Execução
 
-### 2.1. Contextualização
+### 1. Clone o repositório
+```bash
+git clone https://github.com/seu-usuario/orcid-project-inimigos-do-quartus.git
+cd orcid-project-inimigos-do-quartus
+```
 
-O [ORCID](https://orcid.org) (Open Researcher and Contributor ID) é um identificador digital único para pesquisadores e autores acadêmicos. Ele foi criado como um projeto open source, com o objetivo de resolver o problema de ambiguidade nos nomes dos autores em publicações científicas, garantindo que cada pesquisador tenha um ID exclusivo, independente de variações no nome, afiliações institucionais ou mudanças de carreira.
+### 2. Instale as dependências
+```bash
+npm install
+```
 
-### 2.2. Motivação
+### 3. Configure as variáveis de ambiente
+Copie o arquivo de exemplo e configure suas credenciais:
 
-Embora o seja ORCID essencial para pesquisadores e acadêmicos, sua a interface e a usabilidade poderiam ser muito melhores. Além disso, é possível criar uma vasta gama de produtos e soluções em cima dele, tendo em vista que a [documentação](https://github.com/ORCID/ORCID-Source) da sua API é muito bem estruturada. Veja [como usar a API](/API.md).
+```bash
+cp .env.example .env.local
+```
 
-### 2.3. Objetivos
+Em seguida, edite o arquivo `.env.local` com suas chaves reais (veja seção [Configuração do .env](#configuração-do-env) abaixo):
 
-**Entrevistar 3 professores** para coletar e documentar requisitos e necessidades para o desenvolvimento de um produto que melhore a visualização, interação ou gestão dos dados fornecidos via API pública do ORCID; seguindo os padrões, os métodos, e as documentações discutidas na disciplina. 
+```bash
+ORCID_CLIENT_ID=seu_client_id_orcid
+ORCID_CLIENT_SECRET=seu_client_secret_orcid
+OPENAI_API_KEY=sua_chave_openai
+```
 
-**Idealizar e desenvolver o produto**, que pode ser uma aplicação Web, Mobile, Desktop, etc.
+### 4. Execute o projeto em modo de desenvolvimento
+```bash
+npm run dev
+```
 
-### 2.4 Sugestões
+Acesse [http://localhost:3000](http://localhost:3000) para ver a aplicação funcionando.
 
-Seguem algumas sugestões de possíveis melhorias:
+### 5. Build para produção
+```bash
+npm run build
+```
 
-- Visualizar estatísticas das publicações.
-- Gerenciar publicações de forma mais visual e interativa.
-- Analisar rede acadêmica de colaborações.
-- Alertas e notificações (ex: citação de artigos, publicações).
+## 🔐 Configuração do .env
 
-## 3. Avaliação
+O arquivo `.env.local` é **essencial** para o funcionamento da aplicação. Ele contém as chaves de API necessárias:
 
-A nota de avaliação do trabalho será dada por:
+### Variáveis Obrigatórias:
 
-1. Documentação do Projeto (4):
-    - Plano do projeto. (0,5)
-    - Documento de requisitos e entrevistas. (2)
-    - Modelagem do software. (0,5)
-    - Casos de uso. (0,5)
-    - Casos de teste. (0,5)
+1. **`ORCID_CLIENT_ID`** e **`ORCID_CLIENT_SECRET`**:
+   - Obtidas registrando uma aplicação no [ORCID Developer Tools](https://orcid.org/developer-tools)
+   - Necessárias para acessar a API pública do ORCID
+   - Permitem buscar e recuperar dados de pesquisadores
 
-2. Desenvolvimento (3):
-    - Seguir metodologia escolhida. (2)
-    - Organização das tarefas. (1)
+2. **`OPENAI_API_KEY`**:
+   - Chave de API da OpenAI para funcionalidades de chat com IA
+   - Obtida em [OpenAI API Keys](https://platform.openai.com/api-keys)
+   - Usada para gerar respostas inteligentes sobre pesquisadores
 
-3. Produto (3):
-    - Atendimento às funcionalidades e requisitos. (1)
-    - Organização e documentação do código no GitHub. (0,5)
-    - Usabilidade e manutenabilidade. (0,5)
-    - Apresentação do produto. (1)
+## 🎯 Funcionalidades Principais
+
+### Página Inicial
+- Interface de boas-vindas com informações sobre o projeto
+- Acesso direto à funcionalidade de busca
+
+### Busca de Pesquisadores
+- Busca por nome, palavras-chave ou área de pesquisa
+- Filtros por país e ordenação por relevância
+- Resultados com informações resumidas de cada pesquisador
+
+### Perfil Detalhado
+- Informações completas do pesquisador
+- Lista de publicações com detalhes
+- Estatísticas de citações e impacto
+- Interface de chat com IA para perguntas sobre o pesquisador
+
+### Chat com IA
+- Perguntas pré-sugeridas sobre o pesquisador
+- Respostas contextualizadas baseadas nos dados do ORCID
+- Interface conversacional intuitiva
+
+### Exportação PDF
+- Relatórios em PDF com informações completas
+- Design profissional para uso acadêmico
+
+## 📁 Estrutura do Projeto
+
+```
+/
+├── app/                    # App Router do Next.js
+│   ├── api/               # API Routes
+│   │   ├── chat/          # Endpoint do chat com IA
+│   │   ├── export-pdf/    # Geração de PDFs
+│   │   ├── researcher/    # Dados de pesquisadores
+│   │   └── search/        # Busca de pesquisadores
+│   ├── researcher/[id]/   # Página de perfil individual
+│   ├── search/           # Página de busca
+│   └── page.tsx          # Página inicial
+├── components/           # Componentes reutilizáveis
+│   ├── ui/              # Componentes base (shadcn/ui)
+│   └── chat-interface.tsx
+├── lib/                 # Utilitários e configurações
+│   ├── orcid-auth.ts   # Autenticação ORCID
+│   └── utils.ts        # Funções auxiliares
+└── styles/             # Estilos globais
+```
+
+## 🤝 Contexto Acadêmico
+
+### Objetivos do Trabalho
+
+Este projeto foi desenvolvido como parte dos requisitos da disciplina SCC0130 - Engenharia de Software, com os seguintes objetivos:
+
+1. **Entrevistar 3 professores** para coletar requisitos e necessidades
+2. **Desenvolver uma solução** que melhore a experiência com dados do ORCID
+3. **Aplicar metodologias** de engenharia de software na prática
+
+### Motivação
+
+O [ORCID](https://orcid.org) é essencial para pesquisadores, mas sua interface pode ser melhorada. Nossa solução oferece:
+- Interface mais moderna e intuitiva e responsiva para dispositivos móveis
+- Funcionalidades de busca de pesquisadores por nome e por área de atuação
+- Visualização de dados de pesquisadores aprimoradas
+- Integração com IA para fazer perguntas sobre o pesquisador
+
+## 📝 Licença
+
+Este projeto foi desenvolvido para fins acadêmicos como parte da disciplina SCC0130 - Engenharia de Software.
+
+## 👥 Equipe
+
+Desenvolvido pelo grupo "Inimigos do Quartus" da disciplina SCC0130.
