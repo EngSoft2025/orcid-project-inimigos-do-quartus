@@ -97,7 +97,6 @@ export default function SearchPage() {
       if (response.ok) {
         const data = await response.json()
         setResults(data.researchers || [])
-        console.log(`Found ${data.researchers?.length || 0} researchers`)
       } else {
         let errorMessage = "Erro na busca. Tente novamente."
         

@@ -136,13 +136,10 @@ export async function searchCrossRefByAuthor(authorName: string): Promise<{
   const cacheKey = getCacheKey('crossref-author', authorName)
   const cached = getFromCache(cacheKey, CROSSREF_CACHE)
   if (cached) {
-    console.log(`Using cached CrossRef data for ${authorName}`)
     return cached
   }
 
   try {
-    console.log(`Searching CrossRef for author: ${authorName}`)
-    
     // Search for works by author name
     const searchUrl = `https://api.crossref.org/works?query.author=${encodeURIComponent(authorName)}&rows=100&sort=is-referenced-by-count&order=desc`
     
@@ -157,7 +154,6 @@ export async function searchCrossRefByAuthor(authorName: string): Promise<{
     const works = data.message?.items || []
     
     if (works.length === 0) {
-      console.log(`No CrossRef works found for ${authorName}`)
       return null
     }
 
@@ -174,8 +170,6 @@ export async function searchCrossRefByAuthor(authorName: string): Promise<{
         name.includes(searchNameLower) || searchNameLower.includes(name)
       )
     })
-
-    console.log(`Found ${filteredWorks.length} relevant works for ${authorName} in CrossRef`)
 
     // Process publications
     const publications = filteredWorks.slice(0, 50).map(work => ({
@@ -204,8 +198,6 @@ export async function searchCrossRefByAuthor(authorName: string): Promise<{
 
     // Cache the results
     setCache(cacheKey, result, CROSSREF_CACHE)
-
-    console.log(`CrossRef data for ${authorName}: ${publications.length} publications, ${totalCitations} citations, h-index: ${hIndex}`)
     
     return result
 
@@ -290,15 +282,11 @@ export async function enrichWithOrcidAndCrossRefData(
   let enhancedTotalCitations: number | string = totalCitations
   let enhancedHIndex: number | string = hIndex
 
-  console.log(`Enriching data for ${authorName} using ORCID and CrossRef...`)
-
   // Try to get CrossRef data
   try {
     const crossRefResults = await searchCrossRefByAuthor(authorName)
     
     if (crossRefResults) {
-      console.log(`CrossRef match for ${authorName}: ${crossRefResults.totalCitations} citations, h-index: ${crossRefResults.hIndex}`)
-      
       // Use CrossRef data if ORCID data is missing or incomplete
       if (totalCitations === 0 && crossRefResults.totalCitations > 0) {
         enhancedTotalCitations = crossRefResults.totalCitations
@@ -379,8 +367,6 @@ export async function enrichWithOrcidAndCrossRefData(
     hIndex: formatDataOrDash(enhancedHIndex),
     enhancedWith
   }
-
-  console.log(`Enrichment complete for ${authorName}. Enhanced with: ${enhancedWith.join(', ') || 'ORCID only'}`)
 
   // Only include enrichmentErrors if there were any
   if (enrichmentErrors.length > 0) {

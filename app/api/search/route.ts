@@ -110,15 +110,12 @@ export async function POST(request: NextRequest) {
     const cached = searchCache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < SEARCH_CACHE_DURATION) {
-      console.log(`Cache hit for: ${cacheKey}`);
       return NextResponse.json({ researchers: cached.results });
     }
 
     if (!query?.trim()) {
       return NextResponse.json({ error: "Query is required" }, { status: 400 });
     }
-
-    console.log(`Search: "${query}" (${type}) - Country: ${country || "all"}`);
 
     // Check if ORCID credentials are available
     if (!process.env.ORCID_CLIENT_ID || !process.env.ORCID_CLIENT_SECRET) {
@@ -386,7 +383,6 @@ async function processSearchResults(
 
     // Early return if we already have enough results
     if (researchers.length >= 30) {
-      console.log(`Early return: found ${researchers.length} researchers`);
       break;
     }
 
@@ -917,8 +913,6 @@ function rankAndSortResults(researchers: Researcher[]): Researcher[] {
   researchers.forEach((researcher, index) => {
     researcher.rank = index + 1;
   });
-
-  console.log(`Found ${researchers.length} researchers`);
 
   return researchers.slice(0, 50);
 }

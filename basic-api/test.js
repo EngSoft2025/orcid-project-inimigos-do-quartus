@@ -16,7 +16,6 @@ fetch(url, {
 .then(data => {
     const nome = data.person.name['given-names'].value;
     const sobrenome = data.person.name['family-name'].value;
-    console.log(`Nome completo: ${nome} ${sobrenome}`);
 })
 .catch(error => {
     console.error('Erro ao buscar dados do ORCID:', error);

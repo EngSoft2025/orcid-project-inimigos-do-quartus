@@ -61,13 +61,10 @@ export async function GET(
       );
     }
 
-    console.log(`Fetching detailed profile for ORCID ID: ${orcidId}`);
-
     // Check cache first
     const cacheKey = `detailed_${orcidId}`;
     const cached = detailedProfileCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < DETAILED_CACHE_DURATION) {
-      console.log(`Using cached detailed profile for ${orcidId}`);
       return NextResponse.json(cached.data);
     }
 
@@ -206,10 +203,6 @@ export async function GET(
         const workGroups = worksData.group || [];
         orcidPublicationCount = workGroups.length;
 
-        console.log(
-          `Processing ${Math.min(workGroups.length, 50)} works for ${orcidId}`
-        );
-
         // Process works in smaller batches for better performance
         const batchSize = 10;
         const maxWorks = 50; // Limit to prevent timeout
@@ -249,10 +242,6 @@ export async function GET(
             } catch (error) {
               const errorMessage =
                 error instanceof Error ? error.message : "Unknown error";
-              console.log(
-                `Failed to get detail for work, using summary:`,
-                errorMessage
-              );
               return processWorkSummary(workSummary);
             }
           });
@@ -274,10 +263,6 @@ export async function GET(
       }
     }
 
-    console.log(
-      `Extracted ${publications.length} publications from ORCID for ${orcidId}`
-    );
-
     // Enrich data with external academic platforms
     let enrichedData: any = {
       publications,
@@ -287,9 +272,6 @@ export async function GET(
     };
 
     try {
-      console.log(
-        `Starting enrichment for ${name} with ${publications.length} publications`
-      );
       enrichedData = await Promise.race([
         enrichWithExternalData(name, {
           publications,
@@ -309,21 +291,10 @@ export async function GET(
             citations: formatDataOrDash(pub.citations),
           })
         );
-        console.log(
-          `Publications enriched: ${
-            enrichedData.publications.filter(
-              (p: Publication) => p.citations !== "-" && p.citations !== 0
-            ).length
-          } have citation data`
-        );
       }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      console.log(
-        `Enrichment failed for ${name}, using ORCID data only:`,
-        errorMessage
-      );
 
       // Even if enrichment fails, format the citations properly
       publications = publications.map((pub) => ({
@@ -331,12 +302,6 @@ export async function GET(
         citations: formatDataOrDash(pub.citations),
       }));
     }
-
-    console.log(
-      `Profile enriched with data from: ${
-        enrichedData.enhancedWith?.join(", ") || "ORCID only"
-      }`
-    );
 
     const profile: ResearcherProfile = {
       orcidId,
