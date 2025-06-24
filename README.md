@@ -32,7 +32,7 @@ Esta aplicação foi desenvolvida para resolver as limitações de usabilidade d
 
 ### 1. Clone o repositório
 ```bash
-git clone https://github.com/seu-usuario/orcid-project-inimigos-do-quartus.git
+git clone git@github.com:EngSoft2025/orcid-project-inimigos-do-quartus.git
 cd orcid-project-inimigos-do-quartus
 ```
 
